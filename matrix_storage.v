@@ -119,6 +119,7 @@ module matrix_storage (
     reg found_empty;
     reg [3:0] target_slot;
     reg need_overwrite;
+    reg [4:0] old_spec_idx;                 // 被覆盖槽位的原规格索引
     
     // 临时变量用于遍历
     wire match_0, match_1, match_2, match_3, match_4;
@@ -173,20 +174,77 @@ module matrix_storage (
         
         // 决定目标槽位
         if (match_count >= max_mat_num && match_count > 4'd0) begin
-            // 需要覆盖最旧的同规格矩阵
+            // 同规格已达上限，需要覆盖最旧的同规格矩阵
             need_overwrite = 1'b1;
             target_slot = oldest_slot;
         end
         else if (found_empty) begin
-            // 使用空槽位
+            // 有空槽位，使用空槽位（新增）
             need_overwrite = 1'b0;
             target_slot = empty_slot;
         end
         else begin
-            // 没有空槽位，覆盖最旧的同规格（保护逻辑）
-            need_overwrite = 1'b1;
-            target_slot = oldest_slot;
+            // 没有空槽位，但该规格未达上限
+            // 需要覆盖其他规格的矩阵来腾出空间
+            // 找全局最旧的、且不是当前规格的槽位
+            need_overwrite = 1'b0;  // 这是新增操作（会增加spec_count）
+            target_slot = 4'd0;
+            oldest_id = 4'd15;
+            
+            // 优先找其他规格中最旧的
+            if (mat_valid_0 && !(mat_m_0 == store_m && mat_n_0 == store_n) && mat_id_0 < oldest_id) begin 
+                oldest_id = mat_id_0; target_slot = 4'd0; 
+            end
+            if (mat_valid_1 && !(mat_m_1 == store_m && mat_n_1 == store_n) && mat_id_1 < oldest_id) begin 
+                oldest_id = mat_id_1; target_slot = 4'd1; 
+            end
+            if (mat_valid_2 && !(mat_m_2 == store_m && mat_n_2 == store_n) && mat_id_2 < oldest_id) begin 
+                oldest_id = mat_id_2; target_slot = 4'd2; 
+            end
+            if (mat_valid_3 && !(mat_m_3 == store_m && mat_n_3 == store_n) && mat_id_3 < oldest_id) begin 
+                oldest_id = mat_id_3; target_slot = 4'd3; 
+            end
+            if (mat_valid_4 && !(mat_m_4 == store_m && mat_n_4 == store_n) && mat_id_4 < oldest_id) begin 
+                oldest_id = mat_id_4; target_slot = 4'd4; 
+            end
+            if (mat_valid_5 && !(mat_m_5 == store_m && mat_n_5 == store_n) && mat_id_5 < oldest_id) begin 
+                oldest_id = mat_id_5; target_slot = 4'd5; 
+            end
+            if (mat_valid_6 && !(mat_m_6 == store_m && mat_n_6 == store_n) && mat_id_6 < oldest_id) begin 
+                oldest_id = mat_id_6; target_slot = 4'd6; 
+            end
+            if (mat_valid_7 && !(mat_m_7 == store_m && mat_n_7 == store_n) && mat_id_7 < oldest_id) begin 
+                oldest_id = mat_id_7; target_slot = 4'd7; 
+            end
+            if (mat_valid_8 && !(mat_m_8 == store_m && mat_n_8 == store_n) && mat_id_8 < oldest_id) begin 
+                oldest_id = mat_id_8; target_slot = 4'd8; 
+            end
+            if (mat_valid_9 && !(mat_m_9 == store_m && mat_n_9 == store_n) && mat_id_9 < oldest_id) begin 
+                oldest_id = mat_id_9; target_slot = 4'd9; 
+            end
+            
+            // 如果找不到其他规格的（极端情况：所有槽位都是同规格）
+            // 则覆盖同规格最旧的
+            if (oldest_id == 4'd15 && match_count > 4'd0) begin
+                need_overwrite = 1'b1;
+                target_slot = oldest_slot;
+            end
         end
+        
+        // 计算被覆盖槽位的原规格索引
+        case (target_slot)
+            4'd0: old_spec_idx = (mat_m_0 - 1) * 5 + (mat_n_0 - 1);
+            4'd1: old_spec_idx = (mat_m_1 - 1) * 5 + (mat_n_1 - 1);
+            4'd2: old_spec_idx = (mat_m_2 - 1) * 5 + (mat_n_2 - 1);
+            4'd3: old_spec_idx = (mat_m_3 - 1) * 5 + (mat_n_3 - 1);
+            4'd4: old_spec_idx = (mat_m_4 - 1) * 5 + (mat_n_4 - 1);
+            4'd5: old_spec_idx = (mat_m_5 - 1) * 5 + (mat_n_5 - 1);
+            4'd6: old_spec_idx = (mat_m_6 - 1) * 5 + (mat_n_6 - 1);
+            4'd7: old_spec_idx = (mat_m_7 - 1) * 5 + (mat_n_7 - 1);
+            4'd8: old_spec_idx = (mat_m_8 - 1) * 5 + (mat_n_8 - 1);
+            4'd9: old_spec_idx = (mat_m_9 - 1) * 5 + (mat_n_9 - 1);
+            default: old_spec_idx = 5'd0;
+        endcase
     end
     
     //==========================================================================
@@ -296,11 +354,11 @@ module matrix_storage (
                 // 更新ID
                 next_id <= next_id + 4'd1;
                 
-                // 更新总数和规格计数（如果不是覆盖操作）
-                if (!need_overwrite) begin
+                // 更新总数和规格计数
+                if (!need_overwrite && found_empty) begin
+                    // 情况1：使用空槽位新增，总数+1，新规格计数+1
                     total_mat_count <= total_mat_count + 4'd1;
                     
-                    // 更新规格计数
                     case (spec_idx)
                         5'd0:  spec_count_0  <= spec_count_0  + 4'd1;
                         5'd1:  spec_count_1  <= spec_count_1  + 4'd1;
@@ -330,7 +388,71 @@ module matrix_storage (
                         default: ;
                     endcase
                 end
-                // 覆盖操作不改变总数和规格计数
+                else if (!need_overwrite && !found_empty) begin
+                    // 情况2：覆盖其他规格（need_overwrite=0但没有空槽位）
+                    // 总数不变，新规格计数+1，被覆盖规格计数-1
+                    
+                    // 新规格计数+1
+                    case (spec_idx)
+                        5'd0:  spec_count_0  <= spec_count_0  + 4'd1;
+                        5'd1:  spec_count_1  <= spec_count_1  + 4'd1;
+                        5'd2:  spec_count_2  <= spec_count_2  + 4'd1;
+                        5'd3:  spec_count_3  <= spec_count_3  + 4'd1;
+                        5'd4:  spec_count_4  <= spec_count_4  + 4'd1;
+                        5'd5:  spec_count_5  <= spec_count_5  + 4'd1;
+                        5'd6:  spec_count_6  <= spec_count_6  + 4'd1;
+                        5'd7:  spec_count_7  <= spec_count_7  + 4'd1;
+                        5'd8:  spec_count_8  <= spec_count_8  + 4'd1;
+                        5'd9:  spec_count_9  <= spec_count_9  + 4'd1;
+                        5'd10: spec_count_10 <= spec_count_10 + 4'd1;
+                        5'd11: spec_count_11 <= spec_count_11 + 4'd1;
+                        5'd12: spec_count_12 <= spec_count_12 + 4'd1;
+                        5'd13: spec_count_13 <= spec_count_13 + 4'd1;
+                        5'd14: spec_count_14 <= spec_count_14 + 4'd1;
+                        5'd15: spec_count_15 <= spec_count_15 + 4'd1;
+                        5'd16: spec_count_16 <= spec_count_16 + 4'd1;
+                        5'd17: spec_count_17 <= spec_count_17 + 4'd1;
+                        5'd18: spec_count_18 <= spec_count_18 + 4'd1;
+                        5'd19: spec_count_19 <= spec_count_19 + 4'd1;
+                        5'd20: spec_count_20 <= spec_count_20 + 4'd1;
+                        5'd21: spec_count_21 <= spec_count_21 + 4'd1;
+                        5'd22: spec_count_22 <= spec_count_22 + 4'd1;
+                        5'd23: spec_count_23 <= spec_count_23 + 4'd1;
+                        5'd24: spec_count_24 <= spec_count_24 + 4'd1;
+                        default: ;
+                    endcase
+                    
+                    // 被覆盖规格计数-1
+                    case (old_spec_idx)
+                        5'd0:  spec_count_0  <= spec_count_0  - 4'd1;
+                        5'd1:  spec_count_1  <= spec_count_1  - 4'd1;
+                        5'd2:  spec_count_2  <= spec_count_2  - 4'd1;
+                        5'd3:  spec_count_3  <= spec_count_3  - 4'd1;
+                        5'd4:  spec_count_4  <= spec_count_4  - 4'd1;
+                        5'd5:  spec_count_5  <= spec_count_5  - 4'd1;
+                        5'd6:  spec_count_6  <= spec_count_6  - 4'd1;
+                        5'd7:  spec_count_7  <= spec_count_7  - 4'd1;
+                        5'd8:  spec_count_8  <= spec_count_8  - 4'd1;
+                        5'd9:  spec_count_9  <= spec_count_9  - 4'd1;
+                        5'd10: spec_count_10 <= spec_count_10 - 4'd1;
+                        5'd11: spec_count_11 <= spec_count_11 - 4'd1;
+                        5'd12: spec_count_12 <= spec_count_12 - 4'd1;
+                        5'd13: spec_count_13 <= spec_count_13 - 4'd1;
+                        5'd14: spec_count_14 <= spec_count_14 - 4'd1;
+                        5'd15: spec_count_15 <= spec_count_15 - 4'd1;
+                        5'd16: spec_count_16 <= spec_count_16 - 4'd1;
+                        5'd17: spec_count_17 <= spec_count_17 - 4'd1;
+                        5'd18: spec_count_18 <= spec_count_18 - 4'd1;
+                        5'd19: spec_count_19 <= spec_count_19 - 4'd1;
+                        5'd20: spec_count_20 <= spec_count_20 - 4'd1;
+                        5'd21: spec_count_21 <= spec_count_21 - 4'd1;
+                        5'd22: spec_count_22 <= spec_count_22 - 4'd1;
+                        5'd23: spec_count_23 <= spec_count_23 - 4'd1;
+                        5'd24: spec_count_24 <= spec_count_24 - 4'd1;
+                        default: ;
+                    endcase
+                end
+                // 情况3：覆盖同规格（need_overwrite=1），不改变任何计数
             end
             
             //==================================================================
