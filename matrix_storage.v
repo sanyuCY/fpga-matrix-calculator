@@ -183,52 +183,30 @@ module matrix_storage (
             need_overwrite = 1'b0;
             target_slot = empty_slot;
         end
+        else if (match_count > 4'd0) begin
+            // 没有空槽位，但该规格有矩阵（即使未达上限）
+            // 优先覆盖同规格最旧的矩阵
+            need_overwrite = 1'b1;
+            target_slot = oldest_slot;
+        end
         else begin
-            // 没有空槽位，但该规格未达上限
-            // 需要覆盖其他规格的矩阵来腾出空间
-            // 找全局最旧的、且不是当前规格的槽位
+            // 没有空槽位，且该规格没有任何矩阵
+            // 需要覆盖其他规格的矩阵来腾出空间（全局最旧）
             need_overwrite = 1'b0;  // 这是新增操作（会增加spec_count）
             target_slot = 4'd0;
             oldest_id = 4'd15;
             
-            // 优先找其他规格中最旧的
-            if (mat_valid_0 && !(mat_m_0 == store_m && mat_n_0 == store_n) && mat_id_0 < oldest_id) begin 
-                oldest_id = mat_id_0; target_slot = 4'd0; 
-            end
-            if (mat_valid_1 && !(mat_m_1 == store_m && mat_n_1 == store_n) && mat_id_1 < oldest_id) begin 
-                oldest_id = mat_id_1; target_slot = 4'd1; 
-            end
-            if (mat_valid_2 && !(mat_m_2 == store_m && mat_n_2 == store_n) && mat_id_2 < oldest_id) begin 
-                oldest_id = mat_id_2; target_slot = 4'd2; 
-            end
-            if (mat_valid_3 && !(mat_m_3 == store_m && mat_n_3 == store_n) && mat_id_3 < oldest_id) begin 
-                oldest_id = mat_id_3; target_slot = 4'd3; 
-            end
-            if (mat_valid_4 && !(mat_m_4 == store_m && mat_n_4 == store_n) && mat_id_4 < oldest_id) begin 
-                oldest_id = mat_id_4; target_slot = 4'd4; 
-            end
-            if (mat_valid_5 && !(mat_m_5 == store_m && mat_n_5 == store_n) && mat_id_5 < oldest_id) begin 
-                oldest_id = mat_id_5; target_slot = 4'd5; 
-            end
-            if (mat_valid_6 && !(mat_m_6 == store_m && mat_n_6 == store_n) && mat_id_6 < oldest_id) begin 
-                oldest_id = mat_id_6; target_slot = 4'd6; 
-            end
-            if (mat_valid_7 && !(mat_m_7 == store_m && mat_n_7 == store_n) && mat_id_7 < oldest_id) begin 
-                oldest_id = mat_id_7; target_slot = 4'd7; 
-            end
-            if (mat_valid_8 && !(mat_m_8 == store_m && mat_n_8 == store_n) && mat_id_8 < oldest_id) begin 
-                oldest_id = mat_id_8; target_slot = 4'd8; 
-            end
-            if (mat_valid_9 && !(mat_m_9 == store_m && mat_n_9 == store_n) && mat_id_9 < oldest_id) begin 
-                oldest_id = mat_id_9; target_slot = 4'd9; 
-            end
-            
-            // 如果找不到其他规格的（极端情况：所有槽位都是同规格）
-            // 则覆盖同规格最旧的
-            if (oldest_id == 4'd15 && match_count > 4'd0) begin
-                need_overwrite = 1'b1;
-                target_slot = oldest_slot;
-            end
+            // 找全局最旧的槽位
+            if (mat_valid_0 && mat_id_0 < oldest_id) begin oldest_id = mat_id_0; target_slot = 4'd0; end
+            if (mat_valid_1 && mat_id_1 < oldest_id) begin oldest_id = mat_id_1; target_slot = 4'd1; end
+            if (mat_valid_2 && mat_id_2 < oldest_id) begin oldest_id = mat_id_2; target_slot = 4'd2; end
+            if (mat_valid_3 && mat_id_3 < oldest_id) begin oldest_id = mat_id_3; target_slot = 4'd3; end
+            if (mat_valid_4 && mat_id_4 < oldest_id) begin oldest_id = mat_id_4; target_slot = 4'd4; end
+            if (mat_valid_5 && mat_id_5 < oldest_id) begin oldest_id = mat_id_5; target_slot = 4'd5; end
+            if (mat_valid_6 && mat_id_6 < oldest_id) begin oldest_id = mat_id_6; target_slot = 4'd6; end
+            if (mat_valid_7 && mat_id_7 < oldest_id) begin oldest_id = mat_id_7; target_slot = 4'd7; end
+            if (mat_valid_8 && mat_id_8 < oldest_id) begin oldest_id = mat_id_8; target_slot = 4'd8; end
+            if (mat_valid_9 && mat_id_9 < oldest_id) begin oldest_id = mat_id_9; target_slot = 4'd9; end
         end
         
         // 计算被覆盖槽位的原规格索引

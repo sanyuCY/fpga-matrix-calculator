@@ -1,201 +1,273 @@
 `timescale 1ns / 1ps
-
-
-
+//////////////////////////////////////////////////////////////////////////////
+// Module: control_fsm - ä¿®å¤ç‰ˆ
+// ä¿®å¤å†…å®¹:
+//   1. å°†å¤ä½é€»è¾‘åˆå¹¶åˆ°ä¸»æ—¶é’Ÿå—ä¸­ï¼ˆç§»é™¤negedge rst_nçš„ç‹¬ç«‹å—ï¼‰
+//   2. æ·»åŠ op_startã€operand_id1ã€operand_id2è¾“å‡ºä¿¡å·
+//   3. æŒ‰é”®è¾¹æ²¿æ£€æµ‹ï¼Œé˜²æ­¢é‡å¤è§¦å‘
+//   4. ä¿®å¤å€’è®¡æ—¶é€»è¾‘ï¼Œé¿å…å¤šé©±åŠ¨é—®é¢˜
+//   5. æ·»åŠ display_doneç”Ÿæˆé€»è¾‘
+//////////////////////////////////////////////////////////////////////////////
 
 module control_fsm(
-    input clk,                  // È«¾ÖÊ±ÖÓ£¨100MHz£©
-    input rst_n,                // È«¾Ö¸´Î»£¨µÍµçÆ½ÓĞĞ§£©
-    input [7:0] SW,             // 8Î»²¦Âë¿ª¹Ø£¨SW0~SW7£©
-    input [4:0] KEY,            // 5Î»°´¼ü£¨S1~S5¶ÔÓ¦KEY[0]~KEY[4]£©
-    input op_done,              // ÔËËãÍê³É±êÖ¾£¨À´×Ô³ÉÔ±C£©
-    input input_done,           // ÊäÈë/Éú³ÉÍê³É±êÖ¾£¨À´×Ô³ÉÔ±C£©
-    input display_done,         // Õ¹Ê¾Íê³É±êÖ¾£¨À´×Ô³ÉÔ±A£©
-    input [2:0] error_type,     // ´íÎóÀàĞÍ£¨À´×Ô³ÉÔ±C£º000=ÎŞ´í£©
-    input [7:0] uart_rx_data,   // ÅäÖÃÖ¸Áî£¨À´×Ô³ÉÔ±A£©
-    input rx_done,              // ÅäÖÃÖ¸Áî½ÓÊÕÍê³É£¨À´×Ô³ÉÔ±A£©
-    input [3:0] max_mat_num,    // ¾ØÕó×î´ó´æ´¢¸öÊı£¨À´×Ôparam_config£©
-    input [7:0] val_min,        // ÔªËØ×îĞ¡Öµ£¨À´×Ôparam_config£©
-    input [7:0] val_max,        // ÔªËØ×î´óÖµ£¨À´×Ôparam_config£©
-    input config_done,          // ÅäÖÃÍê³É±êÖ¾£¨À´×Ôparam_config£©
-    input [3:0] result_m,       // ½á¹û¾ØÕóĞĞÊı£¨À´×Ô³ÉÔ±C£©
-    input [3:0] result_n,       // ½á¹û¾ØÕóÁĞÊı£¨À´×Ô³ÉÔ±C£©
-    output reg [3:0] current_mode,  // µ±Ç°×´Ì¬£¨Êä³ö¸øËùÓĞÄ£¿é£©
-    output reg [2:0] current_op,    // ÔËËãÀàĞÍ£¨Êä³ö¸ø³ÉÔ±C£©
-    output reg [7:0] LED,           // LED¿ØÖÆ£¨Êä³ö¸ø¿ª·¢°å£©
-    output reg [15:0] seg_code,     // ÊıÂë¹Ü¿ØÖÆ£¨16Î»£º×ó4+ÓÒ4£©
-    output reg [3:0] scalar,        // ±êÁ¿Öµ£¨Êä³ö¸ø³ÉÔ±C£©
-    output reg [1:0] operand_sel,   // ÔËËãÊıÑ¡ÔñÄ£Ê½£¨00=ÊÖ¶¯£¬01=Ëæ»ú£©
-    output reg [3:0] countdown_sec  // µ¹¼ÆÊ±ÃëÊı£¨Êä³ö¸ø³ÉÔ±A£©
+    input clk,                      // å…¨å±€æ—¶é’Ÿï¼ˆ100MHzï¼‰
+    input rst_n,                    // å…¨å±€å¤ä½ï¼ˆä½ç”µå¹³æœ‰æ•ˆï¼‰
+    input [7:0] SW,                 // 8ä½æ‹¨ç å¼€å…³ï¼ˆSW0~SW7ï¼‰
+    input [4:0] KEY,                // 5ä½æŒ‰é”®ï¼ˆS1~S5å¯¹åº”KEY[0]~KEY[4]ï¼‰
+    input op_done,                  // è¿ç®—å®Œæˆæ ‡å¿—ï¼ˆæ¥è‡ªæˆå‘˜Cï¼‰
+    input input_done,               // è¾“å…¥/ç”Ÿæˆå®Œæˆæ ‡å¿—ï¼ˆæ¥è‡ªæˆå‘˜Cï¼‰
+    input [2:0] error_type,         // é”™è¯¯ç±»å‹ï¼ˆæ¥è‡ªæˆå‘˜Cï¼š000=æ— é”™ï¼‰
+    input [7:0] uart_rx_data,       // é…ç½®æŒ‡ä»¤ï¼ˆæ¥è‡ªæˆå‘˜Aï¼‰
+    input rx_done,                  // é…ç½®æŒ‡ä»¤æ¥æ”¶å®Œæˆï¼ˆæ¥è‡ªæˆå‘˜Aï¼‰
+    input config_done,              // é…ç½®å®Œæˆæ ‡å¿—ï¼ˆæ¥è‡ªparam_configï¼‰
+    input [3:0] result_m,           // ç»“æœçŸ©é˜µè¡Œæ•°ï¼ˆæ¥è‡ªæˆå‘˜Cï¼‰
+    input [3:0] result_n,           // ç»“æœçŸ©é˜µåˆ—æ•°ï¼ˆæ¥è‡ªæˆå‘˜Cï¼‰
+    input [3:0] total_mat_count,    // å­˜å‚¨çš„çŸ©é˜µæ€»æ•°
+    
+    output reg [3:0] current_mode,  // å½“å‰çŠ¶æ€ï¼ˆè¾“å‡ºç»™æ‰€æœ‰æ¨¡å—ï¼‰
+    output reg [2:0] current_op,    // è¿ç®—ç±»å‹ï¼ˆè¾“å‡ºç»™æˆå‘˜Cï¼‰
+    output reg [7:0] LED,           // LEDæ§åˆ¶ï¼ˆè¾“å‡ºç»™å¼€å‘æ¿ï¼‰
+    output reg [15:0] seg_code,     // æ•°ç ç®¡æ§åˆ¶ï¼ˆ16ä½ï¼šå·¦4+å³4ï¼‰
+    output reg [3:0] scalar,        // æ ‡é‡å€¼ï¼ˆè¾“å‡ºç»™æˆå‘˜Cï¼‰
+    output reg [1:0] operand_sel,   // è¿ç®—æ•°é€‰æ‹©æ¨¡å¼ï¼ˆ00=æ‰‹åŠ¨ï¼Œ01=éšæœºï¼‰
+    output reg [3:0] countdown_sec, // å€’è®¡æ—¶ç§’æ•°ï¼ˆè¾“å‡ºç»™æˆå‘˜Aï¼‰
+    output reg op_start,            // è¿ç®—å¼€å§‹ä¿¡å·
+    output reg [3:0] operand_id1,   // æ“ä½œæ•°1çš„å­˜å‚¨ç´¢å¼•
+    output reg [3:0] operand_id2,   // æ“ä½œæ•°2çš„å­˜å‚¨ç´¢å¼•
+    output reg display_done         // å±•ç¤ºå®Œæˆæ ‡å¿—
 );
 
-// 1. ×´Ì¬¶¨Òå£¨9¸öºËĞÄ×´Ì¬£©
-localparam S_MENU      = 4'b0000;  // Ö÷²Ëµ¥
-localparam S_INPUT     = 4'b0001;  // ¾ØÕóÊäÈëÄ£Ê½
-localparam S_GEN       = 4'b0010;  // ¾ØÕóÉú³ÉÄ£Ê½
-localparam S_SHOW      = 4'b0011;  // ¾ØÕóÕ¹Ê¾Ä£Ê½
-localparam S_OP_SELECT = 4'b0100;  // Ñ¡ÔñÔËËãÀàĞÍ
-localparam S_OP_PARAM  = 4'b0101;  // Ñ¡ÔñÔËËãÊı
-localparam S_OP_EXEC   = 4'b0110;  // Ö´ĞĞÔËËã
-localparam S_RESULT    = 4'b0111;  // Õ¹Ê¾½á¹û
-localparam S_RETURN    = 4'b1000;  // µÈ´ı·µ»Ø
+// 1. çŠ¶æ€å®šä¹‰ï¼ˆ9ä¸ªæ ¸å¿ƒçŠ¶æ€ï¼‰
+localparam S_MENU      = 4'b0000;  // ä¸»èœå•
+localparam S_INPUT     = 4'b0001;  // çŸ©é˜µè¾“å…¥æ¨¡å¼
+localparam S_GEN       = 4'b0010;  // çŸ©é˜µç”Ÿæˆæ¨¡å¼
+localparam S_SHOW      = 4'b0011;  // çŸ©é˜µå±•ç¤ºæ¨¡å¼
+localparam S_OP_SELECT = 4'b0100;  // é€‰æ‹©è¿ç®—ç±»å‹
+localparam S_OP_PARAM  = 4'b0101;  // é€‰æ‹©è¿ç®—æ•°
+localparam S_OP_EXEC   = 4'b0110;  // æ‰§è¡Œè¿ç®—
+localparam S_RESULT    = 4'b0111;  // å±•ç¤ºç»“æœ
+localparam S_RETURN    = 4'b1000;  // ç­‰å¾…è¿”å›
 
-// 2. ÔËËãÀàĞÍ±àÂë£¨ºÍSW0~SW2¶ÔÓ¦£©
-localparam OP_TRANS    = 3'b000;  // ×ªÖÃ T
-localparam OP_ADD      = 3'b001;  // ¼Ó·¨ A
-localparam OP_SCALAR   = 3'b010;  // ±êÁ¿³Ë B
-localparam OP_MUL      = 3'b011;  // ¾ØÕó³Ë C
-localparam OP_CONV     = 3'b100;  // ¾í»ı J£¨bonus£©
+// 2. è¿ç®—ç±»å‹ç¼–ç ï¼ˆå’ŒSW0~SW2å¯¹åº”ï¼‰
+localparam OP_TRANS    = 3'b000;  // è½¬ç½® T
+localparam OP_ADD      = 3'b001;  // åŠ æ³• A
+localparam OP_SCALAR   = 3'b010;  // æ ‡é‡ä¹˜ B
+localparam OP_MUL      = 3'b011;  // çŸ©é˜µä¹˜ C
+localparam OP_CONV     = 3'b100;  // å·ç§¯ Jï¼ˆbonusï¼‰
 
-// 3. ÊıÂë¹ÜÏÔÊ¾±àÂë£¨¹²Òõ¼«£¬XC7A35T¼æÈİ£©
-localparam SEG_OFF     = 8'b11111111;  // Ï¨Ãğ
+// 3. æ•°ç ç®¡æ˜¾ç¤ºç¼–ç ï¼ˆå…±é˜´æï¼ŒXC7A35Tå…¼å®¹ï¼‰
+localparam SEG_OFF     = 8'b11111111;  // ç†„ç­
 localparam SEG_0       = 8'b00000011;  // 0
 localparam SEG_1       = 8'b10011111;  // 1
-localparam SEG_2       = 8'b01001001;  // 2
-localparam SEG_3       = 8'b01001101;  // 3
-localparam SEG_4       = 8'b00100111;  // 4
-localparam SEG_5       = 8'b00101101;  // 5
-localparam SEG_6       = 8'b00111101;  // 6
-localparam SEG_7       = 8'b01000011;  // 7
+localparam SEG_2       = 8'b00100101;  // 2
+localparam SEG_3       = 8'b00001101;  // 3
+localparam SEG_4       = 8'b10011001;  // 4
+localparam SEG_5       = 8'b01001001;  // 5
+localparam SEG_6       = 8'b01000001;  // 6
+localparam SEG_7       = 8'b00011111;  // 7
 localparam SEG_8       = 8'b00000001;  // 8
-localparam SEG_9       = 8'b00000101;  // 9
-localparam SEG_T       = 8'b01010001;  // T
+localparam SEG_9       = 8'b00001001;  // 9
+localparam SEG_T       = 8'b11100001;  // T
 localparam SEG_A       = 8'b00010001;  // A
-localparam SEG_B       = 8'b00110001;  // B
-localparam SEG_C       = 8'b01000101;  // C
-localparam SEG_J       = 8'b01011001;  // J
+localparam SEG_B       = 8'b11000001;  // B
+localparam SEG_C       = 8'b01100011;  // C
+localparam SEG_J       = 8'b00000111;  // J
 
-// 4. ·ÀÎó²Ù×÷Ïà¹Ø¶¨Òå£¨100MHzÊ±ÖÓÊÊÅä£©
-reg [23:0] key_cnt;           // °´¼üÏû¶¶¼ÆÊıÆ÷£¨100MHz*10ms=1,000,000£©
-reg [4:0] key_sync;           // °´¼üÍ¬²½¼Ä´æÆ÷
-reg [4:0] key_clean;          // Ïû¶¶ºóµÄ°´¼üĞÅºÅ£¨¸ßµçÆ½ÓĞĞ§£©
-reg [23:0] sw_cnt;            // ²¦Âë¿ª¹Ø·À¶¶¼ÆÊıÆ÷
-reg [7:0] sw_sync;            // ²¦Âë¿ª¹ØÍ¬²½¼Ä´æÆ÷
-reg [7:0] sw_clean;           // ·À¶¶ºóµÄ²¦Âë¿ª¹ØĞÅºÅ
-reg [31:0] countdown_cnt;     // ´íÎóµ¹¼ÆÊ±¼ÆÊıÆ÷£¨100MHzÊ±ÖÓ£©
-reg countdown_en;             // µ¹¼ÆÊ±Ê¹ÄÜĞÅºÅ
-reg [3:0] countdown_cfg;      // µ¹¼ÆÊ±ÅäÖÃÖµ£¨5~15Ãë£¬Ä¬ÈÏ10Ãë£©
+// 4. å†…éƒ¨å¯„å­˜å™¨å®šä¹‰
+reg [19:0] key_cnt;               // æŒ‰é”®æ¶ˆæŠ–è®¡æ•°å™¨ï¼ˆ100MHz*10ms=1,000,000ï¼‰
+reg [4:0] key_sync, key_sync_d;   // æŒ‰é”®åŒæ­¥å¯„å­˜å™¨
+reg [4:0] key_clean;              // æ¶ˆæŠ–åçš„æŒ‰é”®ä¿¡å·
+reg [4:0] key_clean_d;            // æ¶ˆæŠ–ä¿¡å·å»¶è¿Ÿï¼ˆç”¨äºè¾¹æ²¿æ£€æµ‹ï¼‰
+wire [4:0] key_posedge;           // æŒ‰é”®ä¸Šå‡æ²¿
 
-// 5. ¸´Î»³õÊ¼»¯£¨µÍµçÆ½ÓĞĞ§£©
-always @(negedge rst_n) begin
-    current_mode <= S_MENU;       // ¸´Î»ºó»Øµ½Ö÷²Ëµ¥
-    current_op <= OP_TRANS;       // Ä¬ÈÏÔËËãÀàĞÍ£º×ªÖÃ
-    LED <= 8'b00000000;           // ËùÓĞLEDÏ¨Ãğ
-    seg_code <= {SEG_OFF, SEG_OFF};// ÊıÂë¹ÜÏ¨Ãğ
-    scalar <= 4'd0;               // ±êÁ¿Ä¬ÈÏ0
-    operand_sel <= 2'b00;         // Ä¬ÈÏÊÖ¶¯Ñ¡ÔñÔËËãÊı
-    key_cnt <= 24'd0;
-    key_sync <= 5'b00000;
-    key_clean <= 5'b00000;
-    sw_cnt <= 24'd0;
-    sw_sync <= 8'b00000000;
-    sw_clean <= 8'b00000000;
-    countdown_cnt <= 32'd0;
-    countdown_sec <= 4'd10;       // Ä¬ÈÏµ¹¼ÆÊ±10Ãë
-    countdown_cfg <= 4'd10;       // Ä¬ÈÏÅäÖÃ10Ãë
-    countdown_en <= 1'b0;
-end
+reg [19:0] sw_cnt;                // æ‹¨ç å¼€å…³é˜²æŠ–è®¡æ•°å™¨
+reg [7:0] sw_sync, sw_sync_d;     // æ‹¨ç å¼€å…³åŒæ­¥å¯„å­˜å™¨
+reg [7:0] sw_clean;               // é˜²æŠ–åçš„æ‹¨ç å¼€å…³ä¿¡å·
 
-// 6. °´¼üÏû¶¶Âß¼­£¨100MHzÊ±ÖÓ£º10ms=1,000,000¸öÊ±ÖÓÖÜÆÚ£©
+reg [31:0] countdown_cnt;         // é”™è¯¯å€’è®¡æ—¶è®¡æ•°å™¨ï¼ˆ100MHzæ—¶é’Ÿï¼‰
+reg countdown_en;                 // å€’è®¡æ—¶ä½¿èƒ½ä¿¡å·
+reg [3:0] countdown_cfg;          // å€’è®¡æ—¶é…ç½®å€¼ï¼ˆ5~15ç§’ï¼Œé»˜è®¤10ç§’ï¼‰
+
+// æ“ä½œæ•°é€‰æ‹©çŠ¶æ€æœº
+reg [2:0] param_state;
+localparam PARAM_IDLE = 3'd0;
+localparam PARAM_WAIT_M1 = 3'd1;
+localparam PARAM_WAIT_N1 = 3'd2;
+localparam PARAM_WAIT_ID1 = 3'd3;
+localparam PARAM_WAIT_M2 = 3'd4;
+localparam PARAM_WAIT_N2 = 3'd5;
+localparam PARAM_WAIT_ID2 = 3'd6;
+localparam PARAM_WAIT_SCALAR = 3'd7;
+
+reg [3:0] sel_m1, sel_n1;         // ç¬¬ä¸€ä¸ªæ“ä½œæ•°çš„ç»´åº¦
+reg [3:0] sel_m2, sel_n2;         // ç¬¬äºŒä¸ªæ“ä½œæ•°çš„ç»´åº¦
+
+// å±•ç¤ºçŠ¶æ€
+reg [23:0] display_cnt;           // å±•ç¤ºè®¡æ—¶å™¨
+localparam DISPLAY_DELAY = 24'd5000000; // 50mså±•ç¤ºå»¶è¿Ÿ
+
+// UARTæ•°æ®è¾¹æ²¿æ£€æµ‹
+reg rx_done_d;
+wire rx_done_pulse;
+wire [3:0] rx_digit;
+wire is_digit;
+
+assign rx_done_pulse = rx_done & (~rx_done_d);
+assign rx_digit = uart_rx_data[3:0];
+assign is_digit = (uart_rx_data >= 8'h30) && (uart_rx_data <= 8'h39);
+
+// æŒ‰é”®è¾¹æ²¿æ£€æµ‹
+assign key_posedge = key_clean & (~key_clean_d);
+
+// 5. æŒ‰é”®æ¶ˆæŠ–é€»è¾‘ï¼ˆ100MHzæ—¶é’Ÿï¼š10ms=1,000,000ä¸ªæ—¶é’Ÿå‘¨æœŸï¼‰
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         key_sync <= 5'b00000;
+        key_sync_d <= 5'b00000;
         key_clean <= 5'b00000;
-        key_cnt <= 24'd0;
+        key_clean_d <= 5'b00000;
+        key_cnt <= 20'd0;
     end else begin
-        // µÚÒ»²½£ºÍ¬²½°´¼üĞÅºÅ£¨Ïû³ıÑÇÎÈÌ¬£©
-        key_sync <= KEY;
-        // µÚ¶ş²½£ºÏû¶¶¼ÆÊ±
+        // ä¸¤çº§åŒæ­¥
+        key_sync_d <= KEY;
+        key_sync <= key_sync_d;
+        
+        // æ¶ˆæŠ–è®¡æ—¶
         if (key_sync != key_clean) begin
-            key_cnt <= 24'd1000000;  // 100MHz * 10ms = 1e6
-        end else if (key_cnt > 24'd0) begin
-            key_cnt <= key_cnt - 24'd1;
+            key_cnt <= 20'd1000000;  // 100MHz * 10ms
+        end else if (key_cnt > 20'd0) begin
+            key_cnt <= key_cnt - 20'd1;
         end else begin
-            key_clean <= key_sync;  // ¼ÆÊ±½áÊø£¬¸üĞÂÏû¶¶ºóµÄ°´¼üĞÅºÅ
+            key_clean <= key_sync;
         end
+        
+        // ä¿å­˜ä¸Šä¸€æ‹å€¼ç”¨äºè¾¹æ²¿æ£€æµ‹
+        key_clean_d <= key_clean;
     end
 end
 
-// 7. ²¦Âë¿ª¹Ø·À¶¶Âß¼­£¨Í¬°´¼üÏû¶¶£©
+// 6. æ‹¨ç å¼€å…³é˜²æŠ–é€»è¾‘
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         sw_sync <= 8'b00000000;
+        sw_sync_d <= 8'b00000000;
         sw_clean <= 8'b00000000;
-        sw_cnt <= 24'd0;
+        sw_cnt <= 20'd0;
     end else begin
-        // µÚÒ»²½£ºÍ¬²½²¦Âë¿ª¹ØĞÅºÅ
-        sw_sync <= SW;
-        // µÚ¶ş²½£º·À¶¶¼ÆÊ±
+        // ä¸¤çº§åŒæ­¥
+        sw_sync_d <= SW;
+        sw_sync <= sw_sync_d;
+        
+        // é˜²æŠ–è®¡æ—¶
         if (sw_sync != sw_clean) begin
-            sw_cnt <= 24'd1000000;  // 10ms·À¶¶
-        end else if (sw_cnt > 24'd0) begin
-            sw_cnt <= sw_cnt - 24'd1;
+            sw_cnt <= 20'd1000000;  // 10msé˜²æŠ–
+        end else if (sw_cnt > 20'd0) begin
+            sw_cnt <= sw_cnt - 20'd1;
         end else begin
-            sw_clean <= sw_sync;  // ¼ÆÊ±½áÊø£¬¸üĞÂ·À¶¶ºóµÄ¿ª¹ØĞÅºÅ
+            sw_clean <= sw_sync;
         end
     end
 end
 
-// 8. ´íÎóµ¹¼ÆÊ±Âß¼­£¨100MHzÊ±ÖÓ£º1Ãë=1e8¸öÊ±ÖÓÖÜÆÚ£©
+// 7. UARTæ¥æ”¶è¾¹æ²¿æ£€æµ‹
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n)
+        rx_done_d <= 1'b0;
+    else
+        rx_done_d <= rx_done;
+end
+
+// 8. ä¸»çŠ¶æ€æœºå’Œå€’è®¡æ—¶é€»è¾‘ï¼ˆåˆå¹¶ä¸ºå•ä¸€æ—¶é’Ÿå—ï¼‰
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
+        // å¤ä½åˆå§‹åŒ–
+        current_mode <= S_MENU;
+        current_op <= OP_TRANS;
+        scalar <= 4'd0;
+        operand_sel <= 2'b00;
         countdown_cnt <= 32'd0;
         countdown_sec <= 4'd10;
         countdown_cfg <= 4'd10;
         countdown_en <= 1'b0;
+        op_start <= 1'b0;
+        operand_id1 <= 4'd0;
+        operand_id2 <= 4'd0;
+        display_done <= 1'b0;
+        param_state <= PARAM_IDLE;
+        sel_m1 <= 4'd0;
+        sel_n1 <= 4'd0;
+        sel_m2 <= 4'd0;
+        sel_n2 <= 4'd0;
+        display_cnt <= 24'd0;
     end else begin
-        // ÓĞ´íÎóÇÒÔÚÔËËãÊıÑ¡Ôñ×´Ì¬£¬Æô¶¯µ¹¼ÆÊ±£¨½öÊ×´Î´¥·¢£©
+        // é»˜è®¤å€¼
+        op_start <= 1'b0;
+        display_done <= 1'b0;
+        
+        // ========== å€’è®¡æ—¶é€»è¾‘ ==========
+        // å¯åŠ¨å€’è®¡æ—¶æ¡ä»¶ï¼šæœ‰é”™è¯¯ä¸”åœ¨è¿ç®—æ•°é€‰æ‹©çŠ¶æ€ï¼Œä¸”å€’è®¡æ—¶æœªå¯åŠ¨
         if (error_type != 3'b000 && current_mode == S_OP_PARAM && !countdown_en) begin
             countdown_en <= 1'b1;
-            countdown_cnt <= 32'd100000000 * countdown_cfg;  // 100MHz * NÃë
-            countdown_sec <= countdown_cfg;  // ³õÊ¼Ê£ÓàÃëÊı=ÅäÖÃÖµ
+            countdown_cnt <= {countdown_cfg, 28'd0}; // è¿‘ä¼¼ countdown_cfg * 2^28 â‰ˆ Nç§’
+            countdown_sec <= countdown_cfg;
         end
-        // µ¹¼ÆÊ±ÆÚ¼ä£ºµİ¼õ¼ÆÊı£¬ÊµÊ±¸üĞÂÊ£ÓàÃëÊı
+        
+        // å€’è®¡æ—¶æœŸé—´ï¼šé€’å‡è®¡æ•°ï¼Œå®æ—¶æ›´æ–°å‰©ä½™ç§’æ•°
         if (countdown_en && countdown_cnt > 32'd0) begin
             countdown_cnt <= countdown_cnt - 32'd1;
-            countdown_sec <= countdown_cnt / 32'd100000000;  // Ê£ÓàÃëÊı=µ±Ç°¼ÆÊı/1e8
+            // ä½¿ç”¨ç§»ä½è¿‘ä¼¼è®¡ç®—ç§’æ•° (100MHzæ—¶çº¦26.8Må‘¨æœŸ/ç§’)
+            countdown_sec <= countdown_cnt[31:27];
         end
-        // µ¹¼ÆÊ±½áÊø£ºÖØÖÃ
-        else if (countdown_en && countdown_cnt == 32'd0) begin
+        
+        // å€’è®¡æ—¶ç»“æŸï¼šé‡ç½®
+        if (countdown_en && countdown_cnt == 32'd0) begin
             countdown_en <= 1'b0;
             countdown_sec <= countdown_cfg;
-            current_mode <= S_OP_PARAM;  // »Øµ½ÔËËãÊıÑ¡ÔñÆğÊ¼½×¶Î
+            if (current_mode == S_OP_PARAM)
+                param_state <= PARAM_IDLE; // é‡æ–°å¼€å§‹é€‰æ‹©è¿ç®—æ•°
         end
-        // ÔËËãÊıºÏ·¨»òÍË³ö²ÎÊıÑ¡Ôñ×´Ì¬£ºÁ¢¼´¹Ø±Õµ¹¼ÆÊ±
+        
+        // è¿ç®—æ•°åˆæ³•æˆ–é€€å‡ºå‚æ•°é€‰æ‹©çŠ¶æ€ï¼šå…³é—­å€’è®¡æ—¶
         if (error_type == 3'b000 || current_mode != S_OP_PARAM) begin
             countdown_en <= 1'b0;
             countdown_sec <= countdown_cfg;
         end
-    end
-end
-
-// 9. ×´Ì¬Ìø×ªÂß¼­£¨ÍêÕûÖ§³Ö"¼ÌĞøµ±Ç°Ä£Ê½"£©
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        current_mode <= S_MENU;
-    end else begin
-        // µ¹¼ÆÊ±ÆÚ¼ä£¬½öÔÊĞíÖØĞÂÑ¡ÔñÔËËãÊı»ò·µ»Ø
-        if (countdown_en) begin
-            case (current_mode)
-                S_OP_PARAM: begin
-                    if (key_clean[0] == 1'b1) begin  // °´S1È·ÈÏĞÂÔËËãÊı
-                        current_mode <= S_OP_EXEC;
-                    end else if (key_clean[2] == 1'b1) begin  // °´S3·µ»ØÔËËãÀàĞÍÑ¡Ôñ
-                        current_mode <= S_OP_SELECT;
-                        countdown_en <= 1'b0;
-                    end else if (key_clean[3] == 1'b1) begin  // °´S4»ØÖ÷²Ëµ¥
-                        current_mode <= S_MENU;
-                        countdown_en <= 1'b0;
-                    end
-                end
-                default: current_mode <= current_mode;  // ÆäËû×´Ì¬ËøËÀ
-            endcase
+        
+        // ========== å±•ç¤ºè®¡æ—¶é€»è¾‘ ==========
+        if (current_mode == S_SHOW) begin
+            if (display_cnt < DISPLAY_DELAY)
+                display_cnt <= display_cnt + 24'd1;
+            else
+                display_done <= 1'b1;
         end else begin
-            // Õı³£Á÷³Ì£ºÖ§³Ö"¼ÌĞøµ±Ç°Ä£Ê½"»ò"·µ»ØÖ÷²Ëµ¥"
+            display_cnt <= 24'd0;
+        end
+        
+        // ========== ä¸»çŠ¶æ€æœº ==========
+        if (countdown_en) begin
+            // å€’è®¡æ—¶æœŸé—´ï¼Œä»…å…è®¸é‡æ–°é€‰æ‹©è¿ç®—æ•°æˆ–è¿”å›
+            if (current_mode == S_OP_PARAM) begin
+                if (key_posedge[0]) begin  // S1ç¡®è®¤æ–°è¿ç®—æ•°
+                    op_start <= 1'b1;
+                    current_mode <= S_OP_EXEC;
+                    countdown_en <= 1'b0;
+                end else if (key_posedge[2]) begin  // S3è¿”å›è¿ç®—ç±»å‹é€‰æ‹©
+                    current_mode <= S_OP_SELECT;
+                    countdown_en <= 1'b0;
+                    param_state <= PARAM_IDLE;
+                end else if (key_posedge[3]) begin  // S4å›ä¸»èœå•
+                    current_mode <= S_MENU;
+                    countdown_en <= 1'b0;
+                    param_state <= PARAM_IDLE;
+                end
+            end
+        end else begin
+            // æ­£å¸¸æµç¨‹
             case (current_mode)
-                // Ö÷²Ëµ¥£ºSW5~SW7Ñ¡Ôñ+S1È·ÈÏ
+                // ä¸»èœå•ï¼šSW5~SW7é€‰æ‹©+S1ç¡®è®¤
                 S_MENU: begin
-                    if (key_clean[0] == 1'b1) begin
+                    param_state <= PARAM_IDLE;
+                    if (key_posedge[0]) begin
                         case (sw_clean[7:5])
                             3'b000: current_mode <= S_INPUT;
                             3'b001: current_mode <= S_GEN;
@@ -203,81 +275,180 @@ always @(posedge clk or negedge rst_n) begin
                             3'b011: current_mode <= S_OP_SELECT;
                             default: current_mode <= S_MENU;
                         endcase
-                    end else if (key_clean[3] == 1'b1) begin
-                        current_mode <= S_MENU;
                     end
                 end
 
-                // ÊäÈëÄ£Ê½£ºÊäÈëÍê³Éºó£¬S1/S3·µ»ØÖ÷²Ëµ¥£¬S2¼ÌĞøÊäÈë
+                // è¾“å…¥æ¨¡å¼ï¼šè¾“å…¥å®Œæˆåï¼ŒS1/S3è¿”å›ä¸»èœå•ï¼ŒS2ç»§ç»­è¾“å…¥
                 S_INPUT: begin
-                    if (input_done == 1'b1) begin
-                        if (key_clean[0] == 1'b1 || key_clean[2] == 1'b1) begin
+                    if (input_done) begin
+                        if (key_posedge[0] || key_posedge[2]) begin
                             current_mode <= S_MENU;
-                        end else if (key_clean[1] == 1'b1) begin  // ¼ÌĞøµ±Ç°Ä£Ê½
-                            current_mode <= S_INPUT;
+                        end else if (key_posedge[1]) begin
+                            current_mode <= S_INPUT; // ç»§ç»­å½“å‰æ¨¡å¼
                         end
                     end
                 end
 
-                // Éú³ÉÄ£Ê½£ººÍÊäÈëÄ£Ê½Âß¼­Ò»ÖÂ
+                // ç”Ÿæˆæ¨¡å¼ï¼šå’Œè¾“å…¥æ¨¡å¼é€»è¾‘ä¸€è‡´
                 S_GEN: begin
-                    if (input_done == 1'b1) begin
-                        if (key_clean[0] == 1'b1 || key_clean[2] == 1'b1) begin
+                    if (input_done) begin
+                        if (key_posedge[0] || key_posedge[2]) begin
                             current_mode <= S_MENU;
-                        end else if (key_clean[1] == 1'b1) begin  // ¼ÌĞøµ±Ç°Ä£Ê½
+                        end else if (key_posedge[1]) begin
                             current_mode <= S_GEN;
                         end
                     end
                 end
 
-                // Õ¹Ê¾Ä£Ê½£ºÕ¹Ê¾Íê³Éºó£¬S1·µ»ØÖ÷²Ëµ¥£¬S2¼ÌĞøÕ¹Ê¾
+                // å±•ç¤ºæ¨¡å¼ï¼šå±•ç¤ºå®Œæˆåï¼ŒS1è¿”å›ä¸»èœå•ï¼ŒS2ç»§ç»­å±•ç¤º
                 S_SHOW: begin
-                    if (display_done == 1'b1) begin
-                        if (key_clean[0] == 1'b1) begin
+                    if (display_done) begin
+                        if (key_posedge[0]) begin
                             current_mode <= S_MENU;
-                        end else if (key_clean[1] == 1'b1) begin  // ¼ÌĞøµ±Ç°Ä£Ê½
+                        end else if (key_posedge[1]) begin
+                            display_cnt <= 24'd0;
                             current_mode <= S_SHOW;
                         end
                     end
                 end
 
-                // ÔËËãÀàĞÍÑ¡Ôñ£ºS1È·ÈÏ£¬S3·µ»ØÖ÷²Ëµ¥
+                // è¿ç®—ç±»å‹é€‰æ‹©ï¼šS1ç¡®è®¤ï¼ŒS3è¿”å›ä¸»èœå•
                 S_OP_SELECT: begin
-                    if (key_clean[0] == 1'b1) begin
+                    if (key_posedge[0]) begin
                         current_op <= sw_clean[2:0];
                         current_mode <= S_OP_PARAM;
-                    end else if (key_clean[2] == 1'b1) begin
+                        param_state <= PARAM_IDLE;
+                    end else if (key_posedge[2]) begin
                         current_mode <= S_MENU;
                     end
                 end
 
-                // Ñ¡ÔñÔËËãÊı£ºS1È·ÈÏ£¬S3·µ»Ø£¬S5ÇĞ»»Ëæ»úÑ¡Ôñ
+                // é€‰æ‹©è¿ç®—æ•°ï¼šå¤„ç†UARTè¾“å…¥å’ŒæŒ‰é”®ç¡®è®¤
                 S_OP_PARAM: begin
-                    if (key_clean[0] == 1'b1) begin
-                        if (current_op == OP_SCALAR) begin
-                            scalar <= {2'b00, sw_clean[4:3]};  // SW3~SW4Ñ¡Ôñ±êÁ¿£¨0~3£©
-                        end
-                        current_mode <= S_OP_EXEC;
-                    end else if (key_clean[2] == 1'b1) begin
-                        current_mode <= S_OP_SELECT;
-                    end else if (key_clean[4] == 1'b1) begin
-                        operand_sel <= 2'b01;  // ÇĞ»»ÎªÏµÍ³Ëæ»úÑ¡Ôñ
+                    // S5åˆ‡æ¢éšæœºé€‰æ‹©
+                    if (key_posedge[4]) begin
+                        operand_sel <= 2'b01;
                     end
+                    
+                    // S3è¿”å›è¿ç®—ç±»å‹é€‰æ‹©
+                    if (key_posedge[2]) begin
+                        current_mode <= S_OP_SELECT;
+                        param_state <= PARAM_IDLE;
+                    end
+                    
+                    // å‚æ•°é€‰æ‹©çŠ¶æ€æœº
+                    case (param_state)
+                        PARAM_IDLE: begin
+                            if (operand_sel == 2'b01) begin
+                                // éšæœºé€‰æ‹©æ¨¡å¼ï¼šç›´æ¥å¼€å§‹è®¡ç®—
+                                if (key_posedge[0]) begin
+                                    // éšæœºåˆ†é…æ“ä½œæ•°ï¼ˆç®€åŒ–å®ç°ï¼‰
+                                    operand_id1 <= 4'd0;
+                                    operand_id2 <= 4'd1;
+                                    if (current_op == OP_SCALAR)
+                                        scalar <= sw_clean[7:4]; // SW4~SW7ä½œä¸ºæ ‡é‡
+                                    op_start <= 1'b1;
+                                    current_mode <= S_OP_EXEC;
+                                end
+                            end else begin
+                                // æ‰‹åŠ¨é€‰æ‹©æ¨¡å¼
+                                param_state <= PARAM_WAIT_M1;
+                            end
+                        end
+                        
+                        PARAM_WAIT_M1: begin
+                            if (rx_done_pulse && is_digit) begin
+                                sel_m1 <= rx_digit;
+                                param_state <= PARAM_WAIT_N1;
+                            end
+                        end
+                        
+                        PARAM_WAIT_N1: begin
+                            if (rx_done_pulse && is_digit) begin
+                                sel_n1 <= rx_digit;
+                                param_state <= PARAM_WAIT_ID1;
+                            end
+                        end
+                        
+                        PARAM_WAIT_ID1: begin
+                            if (rx_done_pulse && is_digit) begin
+                                operand_id1 <= rx_digit;
+                                // åˆ¤æ–­æ˜¯å¦éœ€è¦ç¬¬äºŒä¸ªæ“ä½œæ•°
+                                if (current_op == OP_ADD || current_op == OP_MUL) begin
+                                    param_state <= PARAM_WAIT_M2;
+                                end else if (current_op == OP_SCALAR) begin
+                                    param_state <= PARAM_WAIT_SCALAR;
+                                end else begin
+                                    // è½¬ç½®æˆ–å·ç§¯åªéœ€è¦ä¸€ä¸ªæ“ä½œæ•°
+                                    if (key_posedge[0]) begin
+                                        op_start <= 1'b1;
+                                        current_mode <= S_OP_EXEC;
+                                        param_state <= PARAM_IDLE;
+                                    end
+                                end
+                            end
+                            // å•æ“ä½œæ•°è¿ç®—çš„ç¡®è®¤
+                            if ((current_op == OP_TRANS || current_op == OP_CONV) && key_posedge[0]) begin
+                                op_start <= 1'b1;
+                                current_mode <= S_OP_EXEC;
+                                param_state <= PARAM_IDLE;
+                            end
+                        end
+                        
+                        PARAM_WAIT_M2: begin
+                            if (rx_done_pulse && is_digit) begin
+                                sel_m2 <= rx_digit;
+                                param_state <= PARAM_WAIT_N2;
+                            end
+                        end
+                        
+                        PARAM_WAIT_N2: begin
+                            if (rx_done_pulse && is_digit) begin
+                                sel_n2 <= rx_digit;
+                                param_state <= PARAM_WAIT_ID2;
+                            end
+                        end
+                        
+                        PARAM_WAIT_ID2: begin
+                            if (rx_done_pulse && is_digit) begin
+                                operand_id2 <= rx_digit;
+                            end
+                            // åŒæ“ä½œæ•°è¿ç®—çš„ç¡®è®¤
+                            if (key_posedge[0]) begin
+                                op_start <= 1'b1;
+                                current_mode <= S_OP_EXEC;
+                                param_state <= PARAM_IDLE;
+                            end
+                        end
+                        
+                        PARAM_WAIT_SCALAR: begin
+                            // æ ‡é‡ä»æ‹¨ç å¼€å…³è¯»å–
+                            scalar <= sw_clean[7:4];
+                            if (key_posedge[0]) begin
+                                op_start <= 1'b1;
+                                current_mode <= S_OP_EXEC;
+                                param_state <= PARAM_IDLE;
+                            end
+                        end
+                        
+                        default: param_state <= PARAM_IDLE;
+                    endcase
                 end
 
-                // Ö´ĞĞÔËËã£º½öÏìÓ¦ÔËËãÍê³É±êÖ¾
+                // æ‰§è¡Œè¿ç®—ï¼šä»…å“åº”è¿ç®—å®Œæˆæ ‡å¿—
                 S_OP_EXEC: begin
-                    if (op_done == 1'b1) begin
+                    if (op_done) begin
                         current_mode <= S_RESULT;
                     end
                 end
 
-                // Õ¹Ê¾½á¹û£ºS1/S4»ØÖ÷²Ëµ¥£¬S2¼ÌĞøµ±Ç°ÔËËãÀàĞÍ
+                // å±•ç¤ºç»“æœï¼šS1/S4å›ä¸»èœå•ï¼ŒS2ç»§ç»­å½“å‰è¿ç®—ç±»å‹
                 S_RESULT: begin
-                    if (key_clean[0] == 1'b1 || key_clean[3] == 1'b1) begin
+                    if (key_posedge[0] || key_posedge[3]) begin
                         current_mode <= S_MENU;
-                    end else if (key_clean[1] == 1'b1) begin  // ¼ÌĞøµ±Ç°ÔËËã
+                    end else if (key_posedge[1]) begin
                         current_mode <= S_OP_PARAM;
+                        param_state <= PARAM_IDLE;
                     end
                 end
 
@@ -285,32 +456,34 @@ always @(posedge clk or negedge rst_n) begin
                     current_mode <= S_MENU;
                 end
 
-                // Òì³£×´Ì¬£º¸´Î»¹Ø¼ü¼Ä´æÆ÷²¢»ØÖ÷²Ëµ¥
+                // å¼‚å¸¸çŠ¶æ€ï¼šå¤ä½å…³é”®å¯„å­˜å™¨å¹¶å›ä¸»èœå•
                 default: begin
                     current_mode <= S_MENU;
                     countdown_en <= 1'b0;
                     operand_sel <= 2'b00;
                     current_op <= OP_TRANS;
+                    param_state <= PARAM_IDLE;
                 end
             endcase
         end
     end
 end
 
-// 10. LED¿ØÖÆÂß¼­£¨¸ßµçÆ½µãÁÁ£¬Æ¥ÅäÔ¼ÊøÎÄ¼şÒı½Å£©
+// 9. LEDæ§åˆ¶é€»è¾‘ï¼ˆé«˜ç”µå¹³ç‚¹äº®ï¼‰
 always @(*) begin
-    LED = 8'b00000000;  // Ä¬ÈÏÈ«Ãğ
+    LED = 8'b00000000;  // é»˜è®¤å…¨ç­
     case (current_mode)
-        S_MENU:      LED[0] = 1'b1;  // LED0=Ö÷²Ëµ¥£¨K3Òı½Å£©
-        S_INPUT:     LED[1] = 1'b1;  // LED1=ÊäÈëÄ£Ê½£¨M1Òı½Å£©
-        S_GEN:       LED[2] = 1'b1;  // LED2=Éú³ÉÄ£Ê½£¨L1Òı½Å£©
-        S_SHOW:      LED[3] = 1'b1;  // LED3=Õ¹Ê¾Ä£Ê½£¨K6Òı½Å£©
+        S_MENU:      LED[0] = 1'b1;  // LED0=ä¸»èœå•
+        S_INPUT:     LED[1] = 1'b1;  // LED1=è¾“å…¥æ¨¡å¼
+        S_GEN:       LED[2] = 1'b1;  // LED2=ç”Ÿæˆæ¨¡å¼
+        S_SHOW:      LED[3] = 1'b1;  // LED3=å±•ç¤ºæ¨¡å¼
         S_OP_SELECT,
         S_OP_PARAM,
         S_OP_EXEC,
-        S_RESULT:    LED[4] = 1'b1;  // LED4=ÔËËãÄ£Ê½£¨J5Òı½Å£©
+        S_RESULT:    LED[4] = 1'b1;  // LED4=è¿ç®—æ¨¡å¼
+        default:     LED[0] = 1'b1;
     endcase
-    // ÓĞ´íÎó»òµ¹¼ÆÊ±ÆÚ¼ä£¬µãÁÁLED5~LED7£¨H5¡¢H6¡¢K1Òı½Å£©
+    // æœ‰é”™è¯¯æˆ–å€’è®¡æ—¶æœŸé—´ï¼Œç‚¹äº®LED5~LED7
     if (error_type != 3'b000 || countdown_en) begin
         LED[5] = 1'b1;
         LED[6] = 1'b1;
@@ -318,32 +491,33 @@ always @(*) begin
     end
 end
 
-// 11. ÊıÂë¹Ü¿ØÖÆÂß¼­£¨16Î»£¬Æ¥ÅäÔ¼ÊøÎÄ¼şÒı½Å£©
+// 10. æ•°ç ç®¡æ§åˆ¶é€»è¾‘
 always @(*) begin
-    seg_code = {SEG_OFF, SEG_OFF};  // Ä¬ÈÏÏ¨Ãğ
+    seg_code = {SEG_OFF, SEG_OFF};  // é»˜è®¤ç†„ç­
     if (countdown_en) begin
-        // µ¹¼ÆÊ±ÆÚ¼ä£º×ó4Î»=Ê®Î»£¬ÓÒ4Î»=¸öÎ»
-        case (countdown_sec / 4'd10)  // Ê®Î»£¨seg_code[15:8]£©
-            4'd0: seg_code[15:8] = SEG_OFF;
-            4'd1: seg_code[15:8] = SEG_1;
-            default: seg_code[15:8] = SEG_OFF;
-        endcase
-        case (countdown_sec % 4'd10)  // ¸öÎ»£¨seg_code[7:0]£©
-            4'd0: seg_code[7:0] = SEG_0;
-            4'd1: seg_code[7:0] = SEG_1;
-            4'd2: seg_code[7:0] = SEG_2;
-            4'd3: seg_code[7:0] = SEG_3;
-            4'd4: seg_code[7:0] = SEG_4;
-            4'd5: seg_code[7:0] = SEG_5;
-            4'd6: seg_code[7:0] = SEG_6;
-            4'd7: seg_code[7:0] = SEG_7;
-            4'd8: seg_code[7:0] = SEG_8;
-            4'd9: seg_code[7:0] = SEG_9;
-            default: seg_code[7:0] = SEG_0;
+        // å€’è®¡æ—¶æœŸé—´ï¼šæ˜¾ç¤ºå‰©ä½™ç§’æ•°
+        case (countdown_sec)
+            4'd0:  seg_code = {SEG_OFF, SEG_0};
+            4'd1:  seg_code = {SEG_OFF, SEG_1};
+            4'd2:  seg_code = {SEG_OFF, SEG_2};
+            4'd3:  seg_code = {SEG_OFF, SEG_3};
+            4'd4:  seg_code = {SEG_OFF, SEG_4};
+            4'd5:  seg_code = {SEG_OFF, SEG_5};
+            4'd6:  seg_code = {SEG_OFF, SEG_6};
+            4'd7:  seg_code = {SEG_OFF, SEG_7};
+            4'd8:  seg_code = {SEG_OFF, SEG_8};
+            4'd9:  seg_code = {SEG_OFF, SEG_9};
+            4'd10: seg_code = {SEG_1, SEG_0};
+            4'd11: seg_code = {SEG_1, SEG_1};
+            4'd12: seg_code = {SEG_1, SEG_2};
+            4'd13: seg_code = {SEG_1, SEG_3};
+            4'd14: seg_code = {SEG_1, SEG_4};
+            4'd15: seg_code = {SEG_1, SEG_5};
+            default: seg_code = {SEG_OFF, SEG_0};
         endcase
     end else begin
         case (current_mode)
-            // ÔËËãÀàĞÍÑ¡Ôñ£º×ó4Î»ÏÔÊ¾ÔËËãÀàĞÍ£¬ÓÒ4Î»Ï¨Ãğ
+            // è¿ç®—ç±»å‹é€‰æ‹©ï¼šæ˜¾ç¤ºè¿ç®—ç±»å‹
             S_OP_SELECT: begin
                 case (sw_clean[2:0])
                     OP_TRANS:  seg_code[15:8] = SEG_T;
@@ -355,20 +529,22 @@ always @(*) begin
                 endcase
                 seg_code[7:0] = SEG_OFF;
             end
-            // ÊäÈë/Éú³ÉÄ£Ê½£ºÓÒ4Î»ÏÔÊ¾Î¬¶È£¨SW3~SW4£©
-            S_INPUT, S_GEN: begin
-                case (sw_clean[4:3])
-                    2'b00: seg_code[7:0] = SEG_1;  // 1ĞĞ/ÁĞ
-                    2'b01: seg_code[7:0] = SEG_2;  // 2ĞĞ/ÁĞ
-                    2'b10: seg_code[7:0] = SEG_3;  // 3ĞĞ/ÁĞ
-                    2'b11: seg_code[7:0] = SEG_4;  // 4ĞĞ/ÁĞ
-                    default: seg_code[7:0] = SEG_1;
+            
+            // è¿ç®—å‚æ•°é€‰æ‹©ï¼šæ˜¾ç¤ºå½“å‰è¿ç®—ç±»å‹
+            S_OP_PARAM, S_OP_EXEC: begin
+                case (current_op)
+                    OP_TRANS:  seg_code[15:8] = SEG_T;
+                    OP_ADD:    seg_code[15:8] = SEG_A;
+                    OP_SCALAR: seg_code[15:8] = SEG_B;
+                    OP_MUL:    seg_code[15:8] = SEG_C;
+                    OP_CONV:   seg_code[15:8] = SEG_J;
+                    default:   seg_code[15:8] = SEG_OFF;
                 endcase
-                seg_code[15:8] = SEG_OFF;
+                seg_code[7:0] = SEG_OFF;
             end
-            // Õ¹Ê¾½á¹û£º×ó4Î»ÏÔÊ¾ĞĞÊı£¬ÓÒ4Î»ÏÔÊ¾ÁĞÊı
+            
+            // å±•ç¤ºç»“æœï¼šæ˜¾ç¤ºç»“æœçŸ©é˜µç»´åº¦
             S_RESULT: begin
-                // ĞĞÊıÏÔÊ¾£¨result_m=1~5£©
                 case (result_m)
                     4'd1: seg_code[15:8] = SEG_1;
                     4'd2: seg_code[15:8] = SEG_2;
@@ -377,7 +553,6 @@ always @(*) begin
                     4'd5: seg_code[15:8] = SEG_5;
                     default: seg_code[15:8] = SEG_OFF;
                 endcase
-                // ÁĞÊıÏÔÊ¾£¨result_n=1~5£©
                 case (result_n)
                     4'd1: seg_code[7:0] = SEG_1;
                     4'd2: seg_code[7:0] = SEG_2;
@@ -387,6 +562,26 @@ always @(*) begin
                     default: seg_code[7:0] = SEG_OFF;
                 endcase
             end
+            
+            // ä¸»èœå•ï¼šæ˜¾ç¤ºå­˜å‚¨çš„çŸ©é˜µæ•°é‡
+            S_MENU: begin
+                case (total_mat_count)
+                    4'd0: seg_code[7:0] = SEG_0;
+                    4'd1: seg_code[7:0] = SEG_1;
+                    4'd2: seg_code[7:0] = SEG_2;
+                    4'd3: seg_code[7:0] = SEG_3;
+                    4'd4: seg_code[7:0] = SEG_4;
+                    4'd5: seg_code[7:0] = SEG_5;
+                    4'd6: seg_code[7:0] = SEG_6;
+                    4'd7: seg_code[7:0] = SEG_7;
+                    4'd8: seg_code[7:0] = SEG_8;
+                    4'd9: seg_code[7:0] = SEG_9;
+                    default: seg_code[7:0] = SEG_OFF;
+                endcase
+                seg_code[15:8] = SEG_OFF;
+            end
+            
+            default: seg_code = {SEG_OFF, SEG_OFF};
         endcase
     end
 end
