@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////
-// Module: matrix_generate - 完整修复版
+// Module: matrix_generate - 修复版：输入0时报错
 //////////////////////////////////////////////////////////////////////////////
 
 module matrix_generate (
@@ -118,15 +118,21 @@ module matrix_generate (
                 GEN_WAIT_CNT: begin
                     if (current_mode != S_GEN) state <= GEN_IDLE;
                     else if (rx_done_pulse && is_digit) begin
-                        target_count <= (rx_digit > max_mat_num) ? max_mat_num :
-                                       (rx_digit == 4'd0) ? 4'd1 : rx_digit;
-                        mat_m <= temp_m;
-                        mat_n <= temp_n;
-                        mat_count <= rx_digit;
-                        total_elem <= temp_m * temp_n;
-                        elem_idx <= 5'd0;
-                        mat_data_flat <= 200'd0;
-                        state <= GEN_GENERATE;
+                        // 修复：输入0时报错，而不是强制生成1个
+                        if (rx_digit == 4'd0) begin
+                            error_type <= ERR_DIM;
+                            state <= GEN_IDLE;
+                        end
+                        else begin
+                            target_count <= (rx_digit > max_mat_num) ? max_mat_num : rx_digit;
+                            mat_m <= temp_m;
+                            mat_n <= temp_n;
+                            mat_count <= (rx_digit > max_mat_num) ? max_mat_num : rx_digit;
+                            total_elem <= temp_m * temp_n;
+                            elem_idx <= 5'd0;
+                            mat_data_flat <= 200'd0;
+                            state <= GEN_GENERATE;
+                        end
                     end
                 end
                 
